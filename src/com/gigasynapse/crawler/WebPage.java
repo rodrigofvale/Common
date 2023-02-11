@@ -18,13 +18,14 @@ public class WebPage {
 	public String body;
 	public String summary;
 	public String imageUrl;
+	public Date firstSeen;
 	public Date date;
 	public String contentType;
 	public String html;
 	
 	public WebPage(int idDoc, String url, String title, String body, 
 			String summary, String imageUrl, Date date, String contentType, 
-			String html) {
+			String html, Date firstSeen) {
 		this.idDoc = idDoc;
 		this.url = url;
 		this.title = title;
@@ -32,16 +33,46 @@ public class WebPage {
 		this.imageUrl = imageUrl;
 		this.summary = summary;
 		this.date = date;
+		this.firstSeen = firstSeen;
 		this.contentType = contentType;
 		this.html = html;
 	}
 	
 	public void save() {
+		saveHtml();
+		saveMeta();
+		saveBody();
+	}
+	
+	public void saveHtml() {
+		String folder = ServiceConfig.getInstance().obj
+				.getJSONObject("crawler").getString("htmlFolder");
+		
+		String idDocAsString = String.format("%010d", idDoc);
+		String[] chunks = idDocAsString.split("(?<=\\G.{5})");
+		
+		String finalFolder = String.format("%s/%s/%s/",
+				folder,
+				Utils.toString(firstSeen),
+				chunks[0]
+		);
+			
+		File file = new File(finalFolder);
+		file.mkdirs();
+		String fileName = String.format("%s/%d.html", finalFolder, idDoc);
+		try {
+			file = new File(fileName);
+			FileUtils.write(file, html, StandardCharsets.UTF_8);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}				
+	}
+	
+	public void saveMeta() {
 		JSONObject jsonObject = new JSONObject();
 		jsonObject.put("idDoc", idDoc);
 		jsonObject.put("url", url);
 		jsonObject.put("title", title);
-		jsonObject.put("body", body);
 		jsonObject.put("imageUrl", imageUrl);
 		jsonObject.put("date", Utils.toString(date));		
 		jsonObject.put("contentType", contentType);
@@ -54,28 +85,22 @@ public class WebPage {
 		
 		String finalFolder = String.format("%s/%s/%s/",
 				folder,
-				Utils.toString(date),
+				Utils.toString(firstSeen),
 				chunks[0]
 		);
 			
 		File file = new File(finalFolder);
 		file.mkdirs();
-		String fileName = String.format("%s/%d.html", finalFolder, idDoc);
 		try {
-			file = new File(fileName);
-			FileUtils.write(file, html, StandardCharsets.UTF_8);
-			fileName = String.format("%s/%d.json", finalFolder, idDoc);
+			String fileName = String.format("%s/%d.json", finalFolder, idDoc);
 			FileUtils.write(new File(fileName), jsonObject.toString(), 
-					StandardCharsets.UTF_8);
-			fileName = String.format("%s/%d.txt", finalFolder, idDoc);
-			FileUtils.write(new File(fileName), summary, 
 					StandardCharsets.UTF_8);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}				
 	}
 	
-	public void saveSummary() {
+	public void saveBody() {
 		String folder = ServiceConfig.getInstance().obj
 				.getJSONObject("crawler").getString("htmlFolder");
 		
@@ -84,7 +109,31 @@ public class WebPage {
 		
 		String finalFolder = String.format("%s/%s/%s/",
 				folder,
-				Utils.toString(date),
+				Utils.toString(firstSeen),
+				chunks[0]
+		);
+			
+		File file = new File(finalFolder);
+		file.mkdirs();
+		try {
+			String fileName = String.format("%s/%d.body", finalFolder, idDoc);
+			FileUtils.write(new File(fileName), body, 
+					StandardCharsets.UTF_8);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}				
+	}
+	
+	public static void saveSummary(int idDoc, Date firstSeen, String summary) {
+		String folder = ServiceConfig.getInstance().obj
+				.getJSONObject("crawler").getString("htmlFolder");
+		
+		String idDocAsString = String.format("%010d", idDoc);
+		String[] chunks = idDocAsString.split("(?<=\\G.{5})");
+		
+		String finalFolder = String.format("%s/%s/%s/",
+				folder,
+				Utils.toString(firstSeen),
 				chunks[0]
 		);
 			
@@ -99,7 +148,11 @@ public class WebPage {
 		}				
 	}
 	
-	public static WebPage load(int idDoc, Date date) {		
+	public void loadSummary() {
+		summary = loadSummary(idDoc, firstSeen);
+	}
+	
+	public static String loadSummary(int idDoc, Date firstSeen) {		
 		String folder = ServiceConfig.getInstance().obj
 				.getJSONObject("crawler").getString("htmlFolder");
 		
@@ -107,7 +160,30 @@ public class WebPage {
 		String[] chunks = idDocAsString.split("(?<=\\G.{5})");		
 		String finalFolder = String.format("%s/%s/%s/",
 				folder,
-				Utils.toString(date),
+				Utils.toString(firstSeen),
+				chunks[0]
+		);
+				
+		try {
+			String fileName = String.format("%s/%d.txt", finalFolder, idDoc);
+			return FileUtils.readFileToString(new File(fileName), 
+					StandardCharsets.UTF_8);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}			
+		return null;
+	}
+	
+	
+	public static WebPage load(int idDoc, Date firstSeen) {		
+		String folder = ServiceConfig.getInstance().obj
+				.getJSONObject("crawler").getString("htmlFolder");
+		
+		String idDocAsString = String.format("%010d", idDoc);
+		String[] chunks = idDocAsString.split("(?<=\\G.{5})");		
+		String finalFolder = String.format("%s/%s/%s/",
+				folder,
+				Utils.toString(firstSeen),
 				chunks[0]
 		);
 				
@@ -122,13 +198,12 @@ public class WebPage {
 			idDoc = jsonObject.getInt("idDoc");
 			String url = jsonObject.getString("url");
 			String title = jsonObject.getString("title");
-			String body = jsonObject.getString("body");
 			String imageUrl = jsonObject.getString("imageUrl");
-			date = Utils.toDate(jsonObject.getString("date"));	
+			Date date = Utils.toDate(jsonObject.getString("date"));	
 			String contentType = jsonObject.getString("contentType");
 			
-			WebPage webpage = new WebPage(idDoc, url, title, body, "", imageUrl, date, contentType, html);
-			webpage.loadSummary(idDoc, date);
+			WebPage webpage = new WebPage(idDoc, url, title, "", "", imageUrl, date, contentType, html, firstSeen);
+			webpage.loadBody();
 			return webpage;
 		} catch (Exception e) {			
 			e.printStackTrace();
@@ -136,7 +211,11 @@ public class WebPage {
 		return null;
 	}
 	
-	public void loadSummary(int idDoc, Date date) {		
+	public void loadBody() {
+		body = loadBody(idDoc, firstSeen);
+	}
+	
+	public static String loadBody(int idDoc, Date firstSeen) {		
 		String folder = ServiceConfig.getInstance().obj
 				.getJSONObject("crawler").getString("htmlFolder");
 		
@@ -144,20 +223,21 @@ public class WebPage {
 		String[] chunks = idDocAsString.split("(?<=\\G.{5})");		
 		String finalFolder = String.format("%s/%s/%s/",
 				folder,
-				Utils.toString(date),
+				Utils.toString(firstSeen),
 				chunks[0]
 		);
 				
 		try {
-			String fileName = String.format("%s/%d.txt", finalFolder, idDoc);
-			summary = FileUtils.readFileToString(new File(fileName), 
+			String fileName = String.format("%s/%d.body", finalFolder, idDoc);
+			return FileUtils.readFileToString(new File(fileName), 
 					StandardCharsets.UTF_8);
 		} catch (Exception e) {
 			e.printStackTrace();
-		}				
+		}			
+		return null;
 	}
 	
-	public void loadMeta(int idDoc, Date date) {		
+	public void loadMeta(int idDoc, Date firstSeen) {		
 		String folder = ServiceConfig.getInstance().obj
 				.getJSONObject("crawler").getString("htmlFolder");
 		
@@ -165,7 +245,7 @@ public class WebPage {
 		String[] chunks = idDocAsString.split("(?<=\\G.{5})");		
 		String finalFolder = String.format("%s/%s/%s/",
 				folder,
-				Utils.toString(date),
+				Utils.toString(firstSeen),
 				chunks[0]
 		);
 				

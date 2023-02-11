@@ -20,7 +20,7 @@ public class ArticlesTable {
 	public static ArrayList<Date> getAllDates() {
 		ArrayList<Date> dates = new ArrayList<Date>();
 		try {
-			String sql = "SELECT DISTINCT date FROM Articles ORDER BY date ASC";
+			String sql = "SELECT DISTINCT firstSeen FROM Articles ORDER BY firstSeen ASC";
 			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
 			ResultSet rs = pstmt.executeQuery();
 			while (rs.next()) {
@@ -214,7 +214,7 @@ public class ArticlesTable {
 	
 	public static ArrayList<ArticleTuple> list(Date date) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
-		String sql = "SELECT * FROM Articles WHERE `date` = ?";
+		String sql = "SELECT * FROM Articles WHERE `firstSeen` = ?";
 		Statement stmt;
 		try {
 			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);

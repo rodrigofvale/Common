@@ -4,7 +4,7 @@
   <artifactId>Common</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <build>
-    <finalName>Common</finalName>    
+    <finalName>common</finalName>    
     <sourceDirectory>src</sourceDirectory>
     
     <plugins>

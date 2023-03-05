@@ -17,6 +17,34 @@ import com.gigasynapse.db.tuples.ArticleTuple;
 public class ArticlesTable {
 	private final static Logger LOGGER = Logger.getLogger("GLOBAL");
 
+    public static ArrayList<Date> getToBeDeletedDates() {
+		ArrayList<Date> dates = new ArrayList<Date>();
+		try {
+			String sql = "select distinct firstSeen from Articles WHERE WEEKOFYEAR(firstSeen) = WEEKOFYEAR(NOW()) AND YEAR(firstSeen) = YEAR(NOW()) - 1";
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				Date date = new Date(rs.getDate(1).getTime());
+				dates.add(date);
+			}
+			rs.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return dates;
+	}
+	
+    public static void deleteToBeDeletedDates() {
+		try {
+			String sql = "delete from Articles WHERE WEEKOFYEAR(firstSeen) = WEEKOFYEAR(NOW()) AND YEAR(firstSeen) = YEAR(NOW()) - 1";
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
+			pstmt.execute();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+    
 	public static ArrayList<Date> getAllDates() {
 		ArrayList<Date> dates = new ArrayList<Date>();
 		try {
@@ -36,10 +64,13 @@ public class ArticlesTable {
 
 	private static ArticleTuple ResultSet2Article(ResultSet rs) {
 		try {
+			Date pubDate = rs.getDate("pubDate") == null ? new Date(rs.getDate("firstSeen").getTime()) : new Date(rs.getDate("pubDate").getTime());
+			
 			return new ArticleTuple(
 					rs.getInt("docId"), 
 					rs.getInt("websiteId"), 
 					rs.getString("url"), 
+					pubDate, 
 					new Date(rs.getDate("firstSeen").getTime()), 
 					new Date(rs.getDate("lastSeen").getTime()),
 					rs.getString("mimetype"),
@@ -185,8 +216,8 @@ public class ArticlesTable {
 	
 	public static ArrayList<ArticleTuple> listDistinct(ArticleStage stage) {		
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
-		String sql = "select distinct firstSeen, websiteId from Articles "
-				+ "where stage = ?";
+		String sql = "select distinct pubDate, websiteId from Articles "
+				+ "where stage = ? AND pubDate IS NOT NULL AND pubDate >= DATE_SUB(NOW(), INTERVAL 1 YEAR)";
 		Statement stmt;
 		try {
 			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
@@ -197,7 +228,8 @@ public class ArticlesTable {
 						0, 
 						rs.getInt("websiteId"), 
 						null, 
-						new Date(rs.getDate("firstSeen").getTime()), 
+						new Date(rs.getDate("pubDate").getTime()), 
+						null, 
 						null,
 						null,
 						stage,
@@ -232,10 +264,10 @@ public class ArticlesTable {
 		return list;
 	}
 
-	public static ArrayList<ArticleTuple> list(Date date, int websiteId, 
+	public static ArrayList<ArticleTuple> listPubDate(Date date, int websiteId, 
 			ArticleStage stage) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
-		String sql = "SELECT * FROM Articles WHERE firstSeen = ? AND "
+		String sql = "SELECT * FROM Articles WHERE pubDate = ? AND "
 				+ "websiteId = ? AND stage = ?";
 		Statement stmt;
 		try {
@@ -419,6 +451,25 @@ public class ArticlesTable {
 		return list;
 	}
 	
+	public static ArrayList<ArticleTuple> getNoPubDate() {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE pubDate is null";
+		ArticleTuple articleTuple = null;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				articleTuple = ResultSet2Article(rs);
+				list.add(articleTuple);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArticleTuple get(int docId) {
 		String sql = "SELECT * FROM Articles WHERE docId = ?";
 		ArticleTuple articleTuple = null;
@@ -442,19 +493,20 @@ public class ArticlesTable {
 		int count = 1;
 		PreparedStatement pstmt;
 		try {		
-			sql = "REPLACE INTO Articles (docId, websiteId, url, firstSeen, "
+			sql = "REPLACE INTO Articles (docId, websiteId, url, pubDate, firstSeen, "
 					+ "lastSeen, mimetype, stage, md5) VALUES( "
-					+ "?, ?, ?, ?, ?, ?, ?, ?)";
+					+ "?, ?, ?, ?, ?, ?, ?, ?, ?)";
 			pstmt = WebCrawlerDB.getInstance().getConnection()
 					.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 			pstmt.setInt(1, item.docId);
 			pstmt.setInt(2, item.websiteId);
 			pstmt.setString(3, item.url);
-			pstmt.setDate(4, new java.sql.Date(item.firstSeen.getTime()));
+			pstmt.setDate(4, new java.sql.Date(item.pubDate.getTime()));
 			pstmt.setDate(5, new java.sql.Date(item.firstSeen.getTime()));
-			pstmt.setString(6, item.mimeType);
-			pstmt.setInt(7, item.stage.getInt());
-			pstmt.setString(8, item.md5);
+			pstmt.setDate(6, new java.sql.Date(item.firstSeen.getTime()));
+			pstmt.setString(7, item.mimeType);
+			pstmt.setInt(8, item.stage.getInt());
+			pstmt.setString(9, item.md5);
 			pstmt.executeUpdate();		
 			ResultSet rs = pstmt.getGeneratedKeys();
 			rs.next();

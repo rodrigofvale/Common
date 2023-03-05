@@ -1,5 +1,6 @@
 package com.gigasynapse.db.tables;
 
+import java.sql.BatchUpdateException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -136,7 +137,7 @@ public class PhrasesTable {
 	}
 
 	public static void put(int websiteId, Date date, 
-			HashMap<String, Integer> map) {
+			HashMap<String, Integer> map) throws BatchUpdateException {
 		if (map.size() == 0) {
 			return;
 		}
@@ -144,7 +145,16 @@ public class PhrasesTable {
 		if (map.size() > 20) {
 			List<HashMap<String, Integer>> parts = Utils.splitMap(map, 20);
 			parts.forEach(item -> {
-				put(websiteId, date, item);
+				try {
+					put(websiteId, date, item);
+				} catch (BatchUpdateException e) {
+					try {
+						put(websiteId, date, item);
+					} catch (BatchUpdateException e2) {
+						LOGGER.severe("Failed to update Phrases due to " + 
+								e2.getMessage());
+					}
+				}
 			});
 			return;
 		}

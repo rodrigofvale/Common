@@ -11,18 +11,20 @@ public class ArticleTuple {
 	public String mimeType = "";
 	public Date firstSeen = new Date();
 	public Date lastSeen = new Date();
+	public Date pubDate = new Date();
 	public ArticleStage stage;
 	public String md5;
 	
 	public ArticleTuple() {		
 	}
 	
-	public ArticleTuple(int docId, int websiteId, String url, Date firstSeen, 
+	public ArticleTuple(int docId, int websiteId, String url, Date pubDate, Date firstSeen, 
 			Date lastSeen, String mimeType, ArticleStage stage,
 			String md5) {
 		this.docId = docId;
 		this.websiteId = websiteId;
 		this.url = url;
+		this.pubDate = pubDate;
 		this.firstSeen = firstSeen;
 		this.lastSeen = lastSeen;
 		this.mimeType = mimeType;

@@ -9,11 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -25,6 +23,7 @@ import com.sun.net.httpserver.HttpExchange;
 
 public class URL {
 	private final static Logger LOGGER = Logger.getLogger("GLOBAL");
+
 	private static PoolingHttpClientConnectionManager poolingConnManager = 
 			new PoolingHttpClientConnectionManager();
 	private static CloseableHttpClient httpclient = HttpClients.custom()
@@ -64,13 +63,11 @@ public class URL {
 			LOGGER.severe(String.format("Failed to send back the HTTP "
 					+ "response %s due to  %s", response, e.getMessage()));
 		}
-	}	
+	}
 
-	public static URLFetchStatus fetch(String url, String content, 
-			int timeout, int attempts) {
-		
-		System.out.printf("Fetching %s %s\n", url, content);
-		
+	public static URLFetchStatus fetch(CloseableHttpClient httpclient, 
+			String url, String content, int timeout) {
+		LOGGER.info(String.format("Fetching %s %s", url, content));
 		HttpPost httppost = new HttpPost(url);
 
 		RequestConfig requestConfig = RequestConfig.custom()
@@ -83,84 +80,52 @@ public class URL {
 		StringEntity params = new StringEntity(content, StandardCharsets.UTF_8);
 		httppost.addHeader("content-type", "application/json; charset=UFT-8");
 		httppost.setEntity(params);
-		
 		try (CloseableHttpResponse httpResponse = httpclient.execute(httppost)) {
 			HttpEntity httpEntity = httpResponse.getEntity();
 			if (httpResponse.getStatusLine().getStatusCode() == 204) {
 				EntityUtils.consumeQuietly(httpEntity);
 				//httppost.releaseConnection();
+				LOGGER.info(String.format("Received 204 from %s", url));
 				return new URLFetchStatus(httpResponse.getStatusLine()
 						.getStatusCode(), null);									
 			}
-			
+
 			InputStream is = httpEntity.getContent();
 			byte[] b = is.readAllBytes();
 			EntityUtils.consumeQuietly(httpEntity);
-			//httppost.releaseConnection();
 			String answer = new String(b, StandardCharsets.UTF_8);
+			LOGGER.info(String.format("Received from %s: code %d, payload %s", 
+					url, httpResponse.getStatusLine().getStatusCode(), answer));
 			return new URLFetchStatus(httpResponse.getStatusLine()
 					.getStatusCode(), answer);				
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			if (e.getMessage().equals("Read timed out")) {
+				return new URLFetchStatus(408, "");
+			} else if (e.getMessage().indexOf("Connection refused") >= 0) {
+				return new URLFetchStatus(500, "");
+			}
+			LOGGER.severe(String.format("Received %s from request\n", 
+					e.getMessage()));
 		}
-		return new URLFetchStatus(408, "");		
-	}
-	
-/*	
-	public static URLFetchStatus fetch(String url, String content, 
-			int timeout, int attempts) {
-		LOGGER.info(String.format("Fetching %s using payload %s", url, content));
-
-			HttpPost httppost = new HttpPost(url);
-
-			RequestConfig requestConfig = RequestConfig.custom()
-					.setConnectionRequestTimeout(timeout)
-					.setConnectTimeout(timeout)
-					.setSocketTimeout(timeout)
-					.build();
-
-			httppost.setConfig(requestConfig);
-
-			// max 10 attempts
-			attempts = (attempts > 10) ? 10 : attempts; 
-
-			StringEntity params = new StringEntity(content, StandardCharsets.UTF_8);
-			httppost.addHeader("content-type", "application/json; charset=UFT-8");
-			httppost.setEntity(params);
-			Exception lastException = null;
-			do {
-				try {
-					try (CloseableHttpResponse httpResponse = httpclient.execute(httppost)) {
-						HttpEntity httpEntity = httpResponse.getEntity();
-						if (httpResponse.getStatusLine().getStatusCode() == 204) {
-							EntityUtils.consumeQuietly(httpEntity);
-							//httppost.releaseConnection();
-							return new URLFetchStatus(httpResponse.getStatusLine()
-									.getStatusCode(), null);									
-						}
-						
-						InputStream is = httpEntity.getContent();
-						byte[] b = is.readAllBytes();
-						EntityUtils.consumeQuietly(httpEntity);
-						//httppost.releaseConnection();
-						String answer = new String(b, StandardCharsets.UTF_8);
-						return new URLFetchStatus(httpResponse.getStatusLine()
-								.getStatusCode(), answer);				
-					}
-				} catch (Exception e) {
-					attempts--;
-					long mili = (long) Math.pow(10 - attempts, 2) * 1000;
-					lastException = e;
-					e.printStackTrace();
-				}
-			} while (attempts > 0);
-			LOGGER.severe(String.format("Erro fetching %s using payload %s "
-					+ "getting %s for timeout of %d", url, content, lastException
-					.getMessage(), timeout));
 		return new URLFetchStatus(408, "");
 	}
-*/
+			
+	public static URLFetchStatus fetchReusingConnection(String url, 
+			String content, int timeout) {
+		return fetch(httpclient, url, content, timeout);
+	}
+	
+	public static URLFetchStatus fetch(String url, String content, 
+			int timeout) {
+		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+			return fetch(httpclient, url, content, timeout);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		return new URLFetchStatus(408, "");
+	}
+/*
 	public static URLFetchStatus doRequest(String url, String content, 
 			int timeout) {
 		return fetch(url, content, 1, timeout);
@@ -169,7 +134,7 @@ public class URL {
 	public static URLFetchStatus doRequest(String url, String content) {
 		return fetch(url, content, 1, 15000);
 	}
-
+*/
 
 	public static String normalizeUrl(String url) {
 		String normalized = "";

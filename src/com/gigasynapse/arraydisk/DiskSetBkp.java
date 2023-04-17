@@ -40,7 +40,7 @@ import com.gigasynapse.common.Hash;
  * +---------+--------+-------------------------------------------------------+
  */
 
-public class DiskSet<E> extends DiskArray<E> {
+public class DiskSetBkp<E> extends DiskArray<E> {
 	protected long blockSetPointersAddress;
 	protected long blockSetPointers[];
 	
@@ -52,18 +52,18 @@ public class DiskSet<E> extends DiskArray<E> {
 	
 	protected int bockSetEmptyIndex;	
 
-	public DiskSet(Class<E> typeArgumentClass) 
+	public DiskSetBkp(Class<E> typeArgumentClass) 
 			throws IOException {
 		this(typeArgumentClass, 1024 * 1024, 1024, 10240, 0);
 	}
 	
-	public DiskSet(Class<E> typeArgumentClass, int blockMapSize, 
+	public DiskSetBkp(Class<E> typeArgumentClass, int blockMapSize, 
 			int blockContentSize) throws IOException {
 		this(typeArgumentClass, blockMapSize, blockContentSize, 10240, 
 				0);
 	}
 
-	public DiskSet(Class<E> typeArgumentClass, int blockMapSize, 
+	public DiskSetBkp(Class<E> typeArgumentClass, int blockMapSize, 
 			int blockContentSize, int emptyDiskNodesSize, int offset) 
 					throws IOException {
 		super(typeArgumentClass, blockMapSize, blockContentSize, 
@@ -553,7 +553,7 @@ public class DiskSet<E> extends DiskArray<E> {
 	public static void unitTest() throws IOException {
 		File file = new File("/tmp/diskset.bin");
 		file.delete();
-		DiskSet diskSet = new DiskSet(String.class, 4, 10);
+		DiskSetBkp diskSet = new DiskSetBkp(String.class, 4, 10);
 		
 		boolean toCreate = !file.exists();
 		diskSet.open(file);

@@ -6,7 +6,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -14,6 +13,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.logging.Logger;
 
 /*
  * In a high level, the disk array file has the following core blocks:
@@ -63,12 +63,12 @@ import java.util.Iterator;
  * In order to reuse empty file areas left by a delete/update process the 
  * application will keep an array pointing to empty slots. For the new content
  * to be added, the application will check for availability of the closed slot 
- * (in size), it there is any empty space available, this file spot will be 
+ * (in size), if there is any empty space available, this file spot will be 
  * used. The EmptySpaces is an array with finite size, when full it will start
  * to replace it content by new empty space that are larger than the ones 
  * available. If the new empty content is small than all spots available in
  * EmptySpaces, it will be dropped and this file will keep this empty spot until
- * a compress() call .  
+ * a compress() call.  
  *  
  * The DiskArray file structure is the following
  *    
@@ -86,6 +86,8 @@ import java.util.Iterator;
  */
 
 public class DiskArray<E> {
+	protected final static Logger LOGGER = Logger.getLogger("GLOBAL");
+
 	private Class<E> typeArgumentClass;
 	protected int totalItems;
 	protected int blockMapSize;
@@ -96,8 +98,10 @@ public class DiskArray<E> {
 	protected long emptyDiskNodesAddress;
 	protected EmptyDiskNode[] emptyDiskNodes;
 	protected RandomAccessFile rafBin;
+	protected WALFile walFile;
+	
 	protected boolean cleared = false;
-		
+	
 	// The offset allows multiple DiskArray to use the same File.
 	// This is useful, for example, to have a HashMap implementation
 	// where one DiskArray can be used to store Keys and another DiskArray 
@@ -109,7 +113,7 @@ public class DiskArray<E> {
 		this(typeArgumentClass, 1024 * 1024, 1024, 10240, 0);
 	}
 	
-	public DiskArray(Class<E> typeArgumentClass, File fileBin, int mapSize, 
+	public DiskArray(Class<E> typeArgumentClass, int mapSize, 
 			int tableBlockSize) throws IOException {
 		this(typeArgumentClass, mapSize, tableBlockSize, 10240, 0);
 	}
@@ -126,10 +130,103 @@ public class DiskArray<E> {
 		this.offset = offset;
 	}
 	
-	public void open(File file, boolean toBeCreate) throws IOException {
-		rafBin = FileFactory.get(file, "rw");
+	/*************************************************************************
+	 * The recover method will bring the state of the file to a valid state.
+	 * In case of a failure during the write process to a disk, a 
+	 * Write Ahead Logging file will be checked and the last write process
+	 * will be repeated. This does not avoid data loss
+	 * 
+	 * @throws IOException
+	 */
+	protected void recoverArray() {
+		try {
+			WALContent walContent = walFile.get();
+			if (walContent == null) {
+				LOGGER.warning("Invalid WAL file");
+				return;
+			}
+			
+			if (walContent.id == -1) {
+				LOGGER.info("WAL file Empty");
+				return;
+			}
+			ByteBuffer buffer = ByteBuffer.wrap(walContent.data);
+			
+			long valueAddress = 0;
+			int size = 0;
+			int blockMapIndex = 0;
+			long blockIndex = 0;
+			long blockAddress = 0;
+			int index = 0;
+			int bytes = 0;
+			byte data[] = null;
+			switch (walContent.id) {
+			case 1:
+				// recovering from a block write failure
+				index = buffer.getInt();
+				blockAddress = buffer.getLong();
+				blockMap[index] = blockAddress; 
+				rafBin.seek(blockMapAddress + index * Long.BYTES);
+				rafBin.writeLong(blockAddress);	    
+				break;
+
+			case 2:
+				// recovering from an Empty DiskNode failure
+				index = buffer.getInt();
+				size = buffer.getInt();
+				data = new byte[size];
+				buffer.get(data);
+				emptyDiskNodes[index].fromBytes(data);
+				rafBin.seek(emptyDiskNodesAddress + index * EmptyDiskNode.bytes());
+				rafBin.write(emptyDiskNodes[index].toBytes());
+				break;
+
+			case 3:
+				// recovering from a saving failure
+				valueAddress = buffer.getLong();
+				size = buffer.getInt();
+				data = new byte[size];
+				buffer.get(data);
+				rafBin.seek(valueAddress);
+				rafBin.writeInt(data.length);
+				rafBin.write(data);					
+				break;
+
+			case 4:
+				// recovering from a saving block failure
+				blockMapIndex = buffer.getInt();
+				blockIndex = buffer.getLong();
+				valueAddress = buffer.getLong();
+
+				rafBin.seek(blockMap[blockMapIndex] + blockIndex * Long.BYTES);
+				rafBin.writeLong(valueAddress);
+				break;
+
+			case 5:
+				// recovering from a deletion failure
+				blockMapIndex = buffer.getInt();
+				blockIndex = buffer.getLong();
+				rafBin.seek(blockMap[blockMapIndex] + blockIndex * Long.BYTES);
+				rafBin.writeLong(0);
+				break;
+
+			}
+		} catch (IOException e) {
+			LOGGER.warning("Invalid WAL file");
+		}
+	}
+	
+	public void open(File file) throws IOException {
+		open(file, !file.exists());
+	}
+	
+	public void open(File file, boolean toClear) throws IOException {
+		rafBin = new RandomAccessFile(file, "rw");
 		
-		if (toBeCreate) {
+		// this log file will be used to allow the app to recover from a crash
+		walFile = new WALFile(new File(file.getAbsoluteFile() + ".wal"));
+		
+		if (toClear) {
 			clear(); 
 		}
 		
@@ -143,10 +240,12 @@ public class DiskArray<E> {
 		loadEmptyDiskNodes();
 
 		validate(blockMapSize, blockContentSize, offset, emptyDiskNodesSize);	
+		recoverArray();
 	}
 	
 	public void close() throws IOException {
-		//rafBin.close();
+		rafBin.close();
+		walFile.close();
 	}
 	
 	public synchronized int add(E e) throws IOException {
@@ -154,7 +253,6 @@ public class DiskArray<E> {
 	}
 
 	public synchronized int add(int i, E e) throws IOException {
-		// TODO: Need to deal with updates with same size content
 		byte data[] = toBytes(e);
 		
 	    if (i >= (long) blockContentSize * blockMapSize) {
@@ -175,6 +273,8 @@ public class DiskArray<E> {
 	    	valueAddress = rafBin.readLong();
 	    	if (valueAddress != 0) {
 	    		rafBin.seek(valueAddress);
+	    		// is the new value the same size of the old one?
+	    		// if so, use the same disk area to update the value
 	    		int size = rafBin.readInt();
 	    		if (size == data.length) {
 	    			rafBin.write(data);
@@ -192,13 +292,29 @@ public class DiskArray<E> {
 	    } else {
 	    	valueAddress = emptyDiskNodes[emptyDiskNodeId].fileIndex;
 	    }
+	    
+	    // critical moment, if app crash during this update 
+	    // system will be unstable. Use Log file for recovery
+	    walFile.set(3);
+	    walFile.add(valueAddress);
+	    walFile.add(data.length);
+	    walFile.add(data);
+	    walFile.flush();
+	    
 		rafBin.seek(valueAddress);
 		rafBin.writeInt(data.length);
 		rafBin.write(data);
-		
+		// success
+	    walFile.set(4);
+	    walFile.add(blockMapIndex);
+	    walFile.add(blockIndex);
+	    walFile.add(valueAddress);
+	    walFile.flush();
+	    
 		rafBin.seek(blockMap[blockMapIndex] + blockIndex * Long.BYTES);
 		rafBin.writeLong(valueAddress);
-		
+		// success
+		walFile.clean();
 		if (emptyDiskNodeId != -1) {
 			emptyDiskNodes[emptyDiskNodeId].size -= (data.length + 4);
 			// free space should consider 4 bytes for size + at least 1 byte
@@ -218,8 +334,11 @@ public class DiskArray<E> {
 	}
 	
 	private void addEmptySlot(long address, int size) throws IOException {
-		int minIndex = -1;
-		int minSize = -1;
+		int minIndex = 0;
+		int minSize = 0;
+		if (emptyDiskNodes.length > 0) {
+			minSize = emptyDiskNodes[0].size;
+		}
 		for(int i = 0; i < emptyDiskNodes.length; i++) {
 			if (emptyDiskNodes[i].size == 0) {				
 				emptyDiskNodes[i].fileIndex = address;
@@ -228,10 +347,7 @@ public class DiskArray<E> {
 				return;
 			}
 			
-			if (minSize == -1) {
-				minSize = emptyDiskNodes[i].size;
-				minIndex = i;									
-			} else if (emptyDiskNodes[i].size < minSize) {
+			if (emptyDiskNodes[i].size < minSize) {
 				minSize = emptyDiskNodes[i].size;
 				minIndex = i;
 			}
@@ -295,9 +411,16 @@ public class DiskArray<E> {
 	    rafBin.seek(blockAddress);
 	    rafBin.write(data);
 	    
+	    walFile.set(1);
+	    walFile.add(index);
+	    walFile.add(blockAddress);
+	    walFile.flush();	    
+	    
 	    blockMap[index] = blockAddress; 
 	    rafBin.seek(blockMapAddress + index * Long.BYTES);
 	    rafBin.writeLong(blockAddress);	    
+	    // success, log can be erased
+	    walFile.clean();
 	    return blockAddress;
 	}
 
@@ -313,7 +436,7 @@ public class DiskArray<E> {
 	    int blockMapIndex = i / blockContentSize;
 	    
 	    if (blockMap[blockMapIndex] == 0) {
-	    	createNewBlock(blockMapIndex);
+	    	return;
 	    }
 	    	    
 	    long blockIndex = i % blockContentSize;	    
@@ -322,10 +445,18 @@ public class DiskArray<E> {
 		if (valueAddress == 0) {
 			return;
 		}
+		
+	    walFile.set(5);
+	    walFile.add(blockMapIndex);
+	    walFile.add(blockIndex);
+	    walFile.flush();	    
+		
 		rafBin.seek(valueAddress);
 		int size = rafBin.readInt();
 		rafBin.seek(blockMap[blockMapIndex] + blockIndex * Long.BYTES);
 		rafBin.writeLong(0);
+		
+		walFile.clean();
 		
 		addEmptySlot(valueAddress, size + 4);
 		
@@ -457,8 +588,14 @@ public class DiskArray<E> {
 	}
 	
 	private void saveEmptyDiskNodes(int i) throws IOException {
+	    walFile.set(2);
+	    walFile.add(i);
+	    walFile.add(emptyDiskNodes[i].toBytes());
+	    walFile.flush();	    
+		
 	    rafBin.seek(emptyDiskNodesAddress + i * EmptyDiskNode.bytes());
 	    rafBin.write(emptyDiskNodes[i].toBytes());
+	    walFile.clean();	    
 	}
 	
 	protected void setBlockContentSize(int blockContentSize) throws IOException {
@@ -740,58 +877,4 @@ public class DiskArray<E> {
 	    			this.blockContentSize));							
 		}		
 	}
-	
-	public static void main(String[] args) throws Exception {
-		unitTest();
-	}
-	public static void unitTest() throws IOException {
-		File file = new File("/tmp/diskarray2.bin");
-		file.delete();
-		DiskArray hashSetDisk = new DiskArray(String.class, 2, 3, 10, 0);
-		DiskArray hashSetDisk2 = new DiskArray(String.class, 10, 10, 10, 0x20);
-		
-		boolean toCreate = !file.exists();
-		hashSetDisk.open(file, toCreate);
-		hashSetDisk2.open(file, toCreate);
-		
-		
-		System.out.println(hashSetDisk.add("0"));
-		System.out.println(hashSetDisk.add("1"));
-		System.out.println(hashSetDisk.add("2"));
-		System.out.println(hashSetDisk.add("3"));
-		System.out.println(hashSetDisk.add("4"));
-		System.out.println(hashSetDisk.add("5"));
-		System.out.println(hashSetDisk.add("6"));
-		System.out.println(hashSetDisk.add("7"));
-		
-		
-		System.out.println(hashSetDisk2.add("vania"));		
-		System.out.println(hashSetDisk2.add("milena"));		
-		System.out.println(hashSetDisk2.add("joão"));
-		System.out.println(hashSetDisk2.add("pedro"));
-		
-		System.out.println(hashSetDisk.get(0));
-		System.out.println(hashSetDisk2.get(0));
-		
-		hashSetDisk2.del(1);
-		hashSetDisk.del(0);
-		
-		hashSetDisk2.add(2, "malu");
-
-		System.out.println(hashSetDisk.size());
-		System.out.println(hashSetDisk2.size());
-		
-		System.out.println("-------");
-		
-		Iterator<String> i = hashSetDisk.iterator();
-		while(i.hasNext()) {
-			System.out.println(i.next());
-		}		
-		
-		System.out.println("-------");
-		
-		i = hashSetDisk2.iterator();
-		while(i.hasNext()) {
-			System.out.println(i.next());
-		}		
-	}}
+}	

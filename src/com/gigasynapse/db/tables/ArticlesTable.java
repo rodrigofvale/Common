@@ -214,6 +214,28 @@ public class ArticlesTable {
 		return list;
 	}
 	
+	public static ArrayList<ArticleTuple> listWeek(Date date) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE WEEK(?) = WEEK(PubDate) "
+				+ "AND YEAR(?) = YEAR(PubDate)";
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
+			pstmt.setDate(1, new java.sql.Date(date.getTime()));
+			pstmt.setDate(2, new java.sql.Date(date.getTime()));
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArrayList<ArticleTuple> listDistinct(ArticleStage stage) {		
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
 		String sql = "select distinct pubDate, websiteId from Articles "
@@ -539,8 +561,8 @@ public class ArticlesTable {
 			return;
 		}
 		
-		if (list.size() > 20) {
-			ArrayList<ArrayList<Integer>> parts = Utils.split(list, 20);
+		if (list.size() > 250) {
+			ArrayList<ArrayList<Integer>> parts = Utils.split(list, 250);
 			parts.forEach(item -> {
 				setStage(item, stage);
 			});	

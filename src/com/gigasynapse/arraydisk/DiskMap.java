@@ -30,7 +30,8 @@ import java.io.IOException;
  * +---------+--------+-------------------------------------------------------+
  */
 
-public class DiskMap<E, V> extends DiskSet<E> {
+public class DiskMap<E, V> {
+	DiskSet<E> keys;
 	DiskArray<V> values;
 	Class<V> typeArgumentClass2;
 	
@@ -49,46 +50,43 @@ public class DiskMap<E, V> extends DiskSet<E> {
 	public DiskMap(Class<E> typeArgumentClass, Class<V> typeArgumentClass2, 
 			int blockMapSize, int blockContentSize, 
 			int emptyDiskNodesSize, int offset) throws IOException {
-		super(typeArgumentClass, blockMapSize, blockContentSize, 
-				emptyDiskNodesSize, offset);
+		keys = new DiskSet(typeArgumentClass, blockMapSize, blockContentSize, 
+				emptyDiskNodesSize, 0);
 		values = new DiskArray(typeArgumentClass2, blockMapSize, 
 					blockContentSize, emptyDiskNodesSize, 0x3C);			
 	}
 	
-	public void open(File file, boolean toBeCreate) throws IOException {
-		values.open(file, toBeCreate);
-		super.open(file, toBeCreate);		
-	}
-	
-
-	protected void clear() throws IOException {
-		super.clear();
-		values.clear();
+	public void open(File file) throws IOException {
+		boolean toClear = !file.exists();
+		keys.open(file);
+		values.open(file, toClear);
 	}
 	
 	public synchronized int add(E e, V v) throws IOException {
-		Integer id = super.add(e);
+		Integer id = keys.add(e);
 		values.add(id, v);		
 		return id;
 	}	
 	
 	public V get(E e) throws IOException {
-	    byte data[] = toBytes(e);
-	    int id = getId(e);
+	    byte data[] = keys.toBytes(e);
+	    int id = keys.getId(e);
 	    if (id != -1) {
 	    	return values.get(id);
 	    }
 	    return null;
 	}
 	
+	public void close() throws IOException {
+		keys.close();
+	}
+	
 
 	public static void unitTest() throws IOException {
 		File file = new File("/tmp/diskset.bin");
-//		file.delete();
-		DiskMap diskMap = new DiskMap(String.class, String.class, 4, 10);
-		boolean toCreate = !file.exists();
-		diskMap.open(file, toCreate);
-		
+		file.delete();
+		DiskMap diskMap = new DiskMap(String.class, String.class, 10, 10);
+		diskMap.open(file);
 		
 		diskMap.add("rodrigo", "vale");
 		diskMap.add("rodrigo", "de freitas vale");
@@ -102,4 +100,9 @@ public class DiskMap<E, V> extends DiskSet<E> {
 		//diskSet.add("gustavo", "vale");
 		diskMap.close();
 	}
+	
+	public static void main(String[] args) throws Exception {
+		unitTest();
+	}	
+	
 }

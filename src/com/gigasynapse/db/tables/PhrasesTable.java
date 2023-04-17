@@ -18,7 +18,7 @@ import com.gigasynapse.db.tuples.WebPagesTuple;
 
 public class PhrasesTable {
 	private final static Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-	
+
 	public static PhraseTuple getTuple(ResultSet rs) {
 		try {
 			return new PhraseTuple(rs.getInt("websiteId"), rs.getDate("date"),  
@@ -28,7 +28,7 @@ public class PhrasesTable {
 		} 
 		return null;	
 	}
-	
+
 	public static void set(PhraseTuple item) {
 		String sql = "REPLACE INTO Phrases (websiteId, date, id, counter) "
 				+ "VALUES (?, ?, ?, ?)";		
@@ -45,7 +45,7 @@ public class PhrasesTable {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public static PhraseTuple get(int websiteId, Date date, String md5) {
 		PhraseTuple item = null;
 		String sql = "SELECT * from Phrases WHERE websiteId = ? and date = ? "
@@ -59,7 +59,7 @@ public class PhrasesTable {
 			ResultSet rs = pstmt.executeQuery();			
 			if (rs.next()) {
 				item = getTuple(rs);				
-            }
+			}
 			rs.close();
 			pstmt.close();
 		} catch (SQLException e) {
@@ -67,7 +67,7 @@ public class PhrasesTable {
 		}
 		return item;
 	}		
-	
+
 	public static HashMap<String, Integer> get(int websiteId, Date date) {
 		HashMap<String, Integer> md5Map = new HashMap<String, Integer>();
 		String sql = "SELECT * from Phrases WHERE websiteId = ? and date = ?";
@@ -80,7 +80,7 @@ public class PhrasesTable {
 			while (rs.next()) {
 				PhraseTuple item = getTuple(rs);
 				md5Map.put(item.md5, item.counter);
-            }
+			}
 			rs.close();
 			pstmt.close();
 		} catch (SQLException e) {
@@ -88,15 +88,15 @@ public class PhrasesTable {
 		}
 		return md5Map;
 	}		
-	
-	
-	
+
+
+
 	public static void put_(int websiteId, Date date, 
 			HashMap<String, Integer> map) {
 		if (map.size() == 0) {
 			return;
 		}
-		
+
 		if (map.size() > 20) {
 			List<HashMap<String, Integer>> parts = Utils.splitMap(map, 20);
 			parts.forEach(item -> {
@@ -104,17 +104,17 @@ public class PhrasesTable {
 			});
 			return;
 		}
-		
+
 		String sql = "REPLACE INTO Phrases (websiteId, date, md5, count) "
 				+ "VALUES ";
-		
+
 		Iterator<String> i = map.keySet().iterator();
 		while(i.hasNext()) {
 			String md5 = i.next();
 			sql += "( ?, ?, ?, ?),";
 		}
 		sql = sql.substring(0, sql.length() - 1);
-		
+
 		try {
 			PreparedStatement pstmt = WebCrawlerDB.getInstance()
 					.getConnection().prepareStatement(sql);
@@ -137,61 +137,63 @@ public class PhrasesTable {
 	}
 
 	public static void put(int websiteId, Date date, 
-			HashMap<String, Integer> map) throws BatchUpdateException {
+			HashMap<String, Integer> map) {
 		if (map.size() == 0) {
 			return;
 		}
-		
+
 		if (map.size() > 20) {
 			List<HashMap<String, Integer>> parts = Utils.splitMap(map, 20);
 			parts.forEach(item -> {
-				try {
-					put(websiteId, date, item);
-				} catch (BatchUpdateException e) {
-					try {
-						put(websiteId, date, item);
-					} catch (BatchUpdateException e2) {
-						LOGGER.severe("Failed to update Phrases due to " + 
-								e2.getMessage());
-					}
-				}
+				put(websiteId, date, item);
 			});
 			return;
 		}
-		
+
 		String sql = "INSERT INTO Phrases (websiteId, date, md5, count) "
 				+ "VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE count = ?";
-		try {			
-			WebCrawlerDB.getInstance()
-					.getConnection().setAutoCommit(false);
-			Iterator<String> i = map.keySet().iterator();
-			PreparedStatement pstmt = WebCrawlerDB.getInstance()
-					.getConnection().prepareStatement(sql);				
-			while(i.hasNext()) {
-				String md5 = i.next();
-				int counter = map.get(md5);
-				pstmt.setInt(1, websiteId);
-				pstmt.setDate(2, new java.sql.Date(date.getTime()));				
-				pstmt.setString(3, md5);
-				pstmt.setInt(4, counter);
-				pstmt.setInt(5, counter);
-				pstmt.addBatch();
+
+		boolean success = false;
+		int attempts = 1;
+		do {
+			try {			
+				WebCrawlerDB.getInstance().getConnection().setAutoCommit(false);
+				Iterator<String> i = map.keySet().iterator();
+				PreparedStatement pstmt = WebCrawlerDB.getInstance()
+						.getConnection().prepareStatement(sql);				
+				while(i.hasNext()) {
+					String md5 = i.next();
+					int counter = map.get(md5);
+					pstmt.setInt(1, websiteId);
+					pstmt.setDate(2, new java.sql.Date(date.getTime()));				
+					pstmt.setString(3, md5);
+					pstmt.setInt(4, counter);
+					pstmt.setInt(5, counter);
+					pstmt.addBatch();
+				}
+				pstmt.executeBatch();
+				pstmt.close();
+				WebCrawlerDB.getInstance().getConnection().setAutoCommit(true);
+				success = true;
+			} catch (Exception e) {
+				LOGGER.severe("Failed to batch update PhrasesTable. Attempt: " 
+						+ attempts);
+				try {
+					WebCrawlerDB.getInstance().getConnection().rollback();
+					WebCrawlerDB.getInstance().getConnection()
+						.setAutoCommit(true);				
+				} catch (SQLException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				attempts++;
+				try {
+					Thread.sleep(30000);
+				} catch (InterruptedException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 			}
-			pstmt.executeBatch();
-			pstmt.close();
-			WebCrawlerDB.getInstance()
-					.getConnection().setAutoCommit(true);
-		} catch (Exception e) {
-			e.printStackTrace();
-			LOGGER.severe(sql);			
-			try {
-				WebCrawlerDB.getInstance().getConnection().rollback();
-				WebCrawlerDB.getInstance()
-					.getConnection().setAutoCommit(true);				
-			} catch (SQLException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-		}
+		} while (!success);
 	}
 }

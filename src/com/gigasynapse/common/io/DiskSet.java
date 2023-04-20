@@ -84,6 +84,11 @@ public class DiskSet<E> {
 		return elements.get(id);
 	}
 	
+	public DiskArray<E> getArray() {
+		return elements;
+	}
+	
+	
 	public int getId(E e) throws IOException {
 	    byte data[] = IOUtils.toBytes(e);
 	    return get(rootBlockAddress, rootBlockSize, data, 0);

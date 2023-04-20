@@ -82,17 +82,32 @@ public class DiskMap<K, V> {
 		}		
 	}
 	
-	public K getKey(int id) throws IOException {
+	public K getKeyById(int id) throws IOException {
 		return keys.get(id);
 	}
 	
 	public V getValue(K e) throws IOException {
 		int id = getId(e);
+		if (id == -1) {
+			return null;
+		}		
 		return values.get(id);
 	}
 	
-	public V getValue(int id) throws IOException {
+	public DiskArray<K> getKeysArray() {
+		return keys;
+	}
+	
+	public DiskArray<V> getValuesArray() {
+		return values;
+	}
+	
+	public V getValueById(int id) throws IOException {
 		return values.get(id);
+	}
+	
+	public void setValue(int id, V value) throws IOException {
+		values.add(id, value);
 	}
 	
 	public int getId(K e) throws IOException {

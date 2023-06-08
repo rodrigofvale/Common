@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.logging.Logger;
 
 import com.gigasynapse.db.WebCrawlerDB;
@@ -28,6 +29,53 @@ public class TaxonomyTable {
 		} 
 		return null;
 	}
+	
+	public static HashSet<String> getGoodSentiment() {
+		HashSet<String> list = new HashSet<String>();
+		String sql = "SELECT LOWER(synonyms) from Taxonomy WHERE LOWER(TRIM(Sentiment)) = 'p'";
+		try {
+			Statement stmt = WebCrawlerDB.getInstance().getConnection().createStatement();
+			ResultSet rs = stmt.executeQuery(sql);			
+			while (rs.next()) {
+				String synonyms = rs.getString(1);
+				if ((synonyms != null) && (synonyms.trim().length() > 0)) {
+					String kwds[] = synonyms.split(",");
+					for(String kwd: kwds) {
+						list.add(kwd);				
+					}
+				}
+            }
+			rs.close();
+			stmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();		
+		}
+		return list;		
+	}
+	
+	public static HashSet<String> getBadSentiment() {
+		HashSet<String> list = new HashSet<String>();
+		String sql = "SELECT LOWER(synonyms) from Taxonomy WHERE LOWER(TRIM(Sentiment)) = 'n'";
+		try {
+			Statement stmt = WebCrawlerDB.getInstance().getConnection().createStatement();
+			ResultSet rs = stmt.executeQuery(sql);			
+			while (rs.next()) {
+				String synonyms = rs.getString(1);
+				if ((synonyms != null) && (synonyms.trim().length() > 0)) {
+					String kwds[] = synonyms.split(",");
+					for(String kwd: kwds) {
+						list.add(kwd);				
+					}
+				}
+            }
+			rs.close();
+			stmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();		
+		}
+		return list;		
+	}
+	
 	
 	public static ArrayList<TaxonomyTuple>list() {
 		ArrayList<TaxonomyTuple> list = new ArrayList<TaxonomyTuple>();

@@ -19,24 +19,28 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 	private long fileSize;
 	private File file;
 
-	public RandomAccessFileInMemory(File file, String mode) 
+	public RandomAccessFileInMemory() 
 			throws FileNotFoundException {
-		super(file, mode);
-		
+		super((File) null, null);
+		init();
+	}
+	
+	public void init() {
 		blocks = new MemoryBlock[totalBlocks];
 		for(int i = 0; i < totalBlocks; i++) {
 			blocks[i] = null;
 		}
 		filePos = 0;
 		fileSize = 0;
-		this.file = file;
-		load(file, mode); 
+		this.file = file;		
 	}
 	
-	private void load(File file, String mode) throws FileNotFoundException {
+	public void load(File file) throws FileNotFoundException {
 		if (file == null) {
 			return;
 		}
+		
+		init();
 		
     	FileInputStream fis = null;
     	BufferedInputStream bis = null;
@@ -67,7 +71,7 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 	@Override
 	public File getFile() {
 		// TODO Auto-generated method stub
-		return null;
+		return file;
 	}
 
 	@Override
@@ -86,8 +90,7 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 		}
 	}
 
-	@Override
-	public void close() throws IOException {
+	public void save(File file) throws IOException {
 		if (file == null) {
 			return;
 		}
@@ -104,7 +107,7 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 		}
 		blocks = null;
 	}
-
+	
 	@Override
 	public void seek(long pos) throws IOException {
 		filePos = pos;
@@ -166,7 +169,7 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 
 	public static void main(String[] args) throws Exception {
 		RandomAccessFileInMemory rafm = 
-				new RandomAccessFileInMemory(new File("/tmp/tmp.db"), "rw");
+				new RandomAccessFileInMemory();
 		
 		System.out.println(rafm.length());
 		rafm.writeInt(5);
@@ -175,7 +178,13 @@ public class RandomAccessFileInMemory extends RandomAccessFileAbstract {
 		System.out.println(rafm.readInt());
 		System.out.println(rafm.readFloat());
 		System.out.println(rafm.length());
-		rafm.close();
+		rafm.save(new File("/tmp/tmp.db"));
+	}
+
+	@Override
+	public void close() throws IOException {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

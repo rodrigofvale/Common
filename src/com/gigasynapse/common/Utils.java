@@ -1,5 +1,8 @@
 package com.gigasynapse.common;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -10,6 +13,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterOutputStream;
 
 public class Utils {	
 	public static String toString(Date date) {
@@ -110,4 +115,30 @@ public class Utils {
 		long diffInMillies = date2.getTime() - date1.getTime();
 		return timeUnit.convert(diffInMillies,TimeUnit.MILLISECONDS);
 	}
+	
+	public static byte[] compress(String value) {
+		return compress(value.getBytes());
+	}
+	
+	public static byte[] compress(byte[] data) {
+		ByteArrayOutputStream os = new ByteArrayOutputStream();    
+		try (DeflaterOutputStream dos = new DeflaterOutputStream(os)) {
+			dos.write(data);    
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}	
+		return os.toByteArray();
+	}
+	
+	public static byte[] decompress(byte[] data) throws IOException {
+		ByteArrayOutputStream os = new ByteArrayOutputStream();    
+		try (OutputStream ios = new InflaterOutputStream(os)) {
+			ios.write(data);    
+		}
+		return os.toByteArray();
+	}
+	
+	
+	
 }

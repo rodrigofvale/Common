@@ -75,4 +75,16 @@ public class RandomAccessFileInDisk extends RandomAccessFileAbstract {
 	public long getFilePointer() throws IOException {
 		return raf.getFilePointer();
 	}
+
+	@Override
+	public void save(File file) throws IOException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void load(File file) throws FileNotFoundException {
+		// TODO Auto-generated method stub
+		
+	}
 }

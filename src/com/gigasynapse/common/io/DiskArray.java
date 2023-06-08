@@ -184,8 +184,12 @@ public class DiskArray<E> {
 		file.writeInt(-1);
 	}
 	
+	public RandomAccessFileAbstract getFile() {
+		return file;
+	}
+	
 	public static void main(String[] args) throws Exception {		
-		RandomAccessFileInMemory file = new RandomAccessFileInMemory(new File("/tmp/diskarray.bin"), "rw");
+		RandomAccessFileInMemory file = new RandomAccessFileInMemory();
 		
 		DiskArray<String> a = new DiskArray<String>(String.class, file);
 		

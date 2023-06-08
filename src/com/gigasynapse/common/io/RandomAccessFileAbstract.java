@@ -1,5 +1,6 @@
 package com.gigasynapse.common.io;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -7,6 +8,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 
@@ -730,4 +732,6 @@ public abstract class RandomAccessFileAbstract {
 	public abstract long length() throws IOException;
     public abstract void setLength(long newLength) throws IOException;
 	public abstract long getFilePointer() throws IOException;
+	public abstract void save(File file) throws IOException;
+	public abstract void load(File file) throws FileNotFoundException;
 }

@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.logging.Logger;
@@ -101,6 +102,24 @@ public class ArticlesTable {
 		return list;
 	}
 
+	public static ArrayList<ArticleTuple> sql(String sql) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		Statement stmt;
+		try {
+			stmt = WebCrawlerDB.getInstance().getConnection().createStatement();
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			stmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArrayList<Date> getDates(ArticleStage stage) {
 		ArrayList<Date> list = new ArrayList<Date>();
 		String sql = "SELECT DISTINCT firstSeen FROM Articles WHERE stage = ? "
@@ -196,7 +215,7 @@ public class ArticlesTable {
 	
 	public static ArrayList<ArticleTuple> listAfter(Date date) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
-		String sql = "SELECT * FROM Articles WHERE `date` > ?";
+		String sql = "SELECT * FROM Articles WHERE `pubDate` > ?";
 		Statement stmt;
 		try {
 			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
@@ -266,6 +285,35 @@ public class ArticlesTable {
 		return list;
 	}
 	
+	public static ArrayList<ArticleTuple> listDistinct() {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "select distinct pubDate, websiteId, stage from Articles "
+				+ "where pubDate IS NOT NULL AND pubDate >= DATE_SUB(NOW(), INTERVAL 1 YEAR) AND stage = 0";
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = new ArticleTuple(
+						0, 
+						rs.getInt("websiteId"), 
+						null, 
+						new Date(rs.getDate("pubDate").getTime()), 
+						null, 
+						null,
+						null,
+						ArticleStage.values()[rs.getInt("stage")],
+						null);								
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArrayList<ArticleTuple> list(Date date) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
 		String sql = "SELECT * FROM Articles WHERE `firstSeen` = ?";
@@ -311,6 +359,90 @@ public class ArticlesTable {
 		return list;
 	}
 
+	public static ArrayList<ArticleTuple> listPubDate(Date date, int websiteId, 
+			ArrayList<ArticleStage> stageList) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE pubDate = ? AND "
+				+ "websiteId = ? AND stage IN (";
+		
+		ArrayList<String> param = new ArrayList<String>();
+		stageList.forEach(item -> {
+			param.add("?");
+		});
+		sql += String.join(",", param) + ")";
+		
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setDate(1, new java.sql.Date(date.getTime()));
+			pstmt.setInt(2, websiteId);
+			for(int i = 0; i < stageList.size(); i++) {
+				pstmt.setInt(3 + i, stageList.get(i).getInt());
+			}
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
+	public static ArrayList<ArticleTuple> listPubDate(Date date, int websiteId) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE pubDate = ? AND "
+				+ "websiteId = ?";
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setDate(1, new java.sql.Date(date.getTime()));
+			pstmt.setInt(2, websiteId);
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
+	public static ArrayList<ArticleTuple> list2BeDeleted() {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE pubDate < ? AND "
+				+ "stage != ?";
+        Date date = new Date();
+        Calendar c = Calendar.getInstance();
+        c.setTime(date);
+        c.add(Calendar.YEAR, -1);
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setDate(1, new java.sql.Date(c.getTime().getTime()));
+			pstmt.setInt(2, ArticleStage.DELETED.getInt());
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArrayList<ArticleTuple> list(int webSiteId) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
 		String sql = "SELECT * FROM Articles WHERE websiteId = ?";
@@ -415,7 +547,7 @@ public class ArticlesTable {
 	
 	public static ArrayList<ArticleTuple> get(Date date) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
-		String sql = "SELECT * FROM Articles WHERE firstSeen = ? AND toBeDeleted = false";
+		String sql = "SELECT * FROM Articles WHERE pubDate = ?";
 		ArticleTuple articleTuple = null;
 		try {
 			PreparedStatement pstmt  = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);

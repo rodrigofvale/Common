@@ -67,7 +67,7 @@ public class URL {
 
 	public static URLFetchStatus fetch(CloseableHttpClient httpclient, 
 			String url, String content, int timeout) {
-		LOGGER.info(String.format("Fetching %s %s", url, content));
+		LOGGER.fine(String.format("Fetching %s %s", url, content));
 		HttpPost httppost = new HttpPost(url);
 
 		RequestConfig requestConfig = RequestConfig.custom()
@@ -85,7 +85,7 @@ public class URL {
 			if (httpResponse.getStatusLine().getStatusCode() == 204) {
 				EntityUtils.consumeQuietly(httpEntity);
 				//httppost.releaseConnection();
-				LOGGER.info(String.format("Received 204 from %s", url));
+				LOGGER.fine(String.format("Received 204 from %s", url));
 				return new URLFetchStatus(httpResponse.getStatusLine()
 						.getStatusCode(), null);									
 			}
@@ -94,7 +94,7 @@ public class URL {
 			byte[] b = is.readAllBytes();
 			EntityUtils.consumeQuietly(httpEntity);
 			String answer = new String(b, StandardCharsets.UTF_8);
-			LOGGER.info(String.format("Received from %s: code %d, payload %s", 
+			LOGGER.fine(String.format("Received from %s: code %d, payload %s", 
 					url, httpResponse.getStatusLine().getStatusCode(), answer));
 			return new URLFetchStatus(httpResponse.getStatusLine()
 					.getStatusCode(), answer);				

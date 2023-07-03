@@ -117,6 +117,9 @@ public class WebPage {
 	}
 	
 	public void saveBody() {
+		if (body == null) {
+			return;
+		}
 		String folder = ServiceConfig.getInstance().obj
 				.getJSONObject("crawler").getString("htmlFolder");
 		

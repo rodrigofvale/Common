@@ -22,7 +22,7 @@ public class TaxonomyTable {
 					rs.getString("label"), 
 					rs.getString("synonyms"),
 					rs.getInt("crossWith"),
-					rs.getString("negative")
+					rs.getInt("sentiment")
 			);
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -189,14 +189,14 @@ public class TaxonomyTable {
 		int count = 1;
 		PreparedStatement pstmt;
 		try {		
-			String sql = "REPLACE INTO Taxonomy (id, parentId, label, synonyms, crossWith, negative) VALUES (?, ?, ?, ?, ?, ?)";
+			String sql = "REPLACE INTO Taxonomy (id, parentId, label, synonyms, crossWith, sentiment) VALUES (?, ?, ?, ?, ?, ?)";
 			pstmt = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql);
 			pstmt.setInt(1, item.id);
 			pstmt.setInt(2, item.parentId);
 			pstmt.setString(3, item.label);
 			pstmt.setString(4, item.synonyms);
 			pstmt.setInt(5, item.crossWith);
-			pstmt.setString(6, item.negative);
+			pstmt.setInt(6, item.sentiment);
 			pstmt.executeUpdate();
 			pstmt.close();
 		} catch (SQLException e) {
@@ -208,13 +208,13 @@ public class TaxonomyTable {
 		int count = 1;
 		PreparedStatement pstmt;
 		try {		
-			String sql = "INSERT INTO Taxonomy (parentId, label, synonyms, crossWith, negative) VALUES (?, ?, ?, ?, ?)";
+			String sql = "INSERT INTO Taxonomy (parentId, label, synonyms, crossWith, sentiment) VALUES (?, ?, ?, ?, ?)";
 			pstmt = WebCrawlerDB.getInstance().getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 			pstmt.setInt(1, item.parentId);
 			pstmt.setString(2, item.label);
 			pstmt.setString(3, item.synonyms);
 			pstmt.setInt(4, item.crossWith);
-			pstmt.setString(5, item.negative);
+			pstmt.setInt(5, item.sentiment);
 			pstmt.executeUpdate();
 			ResultSet rs = pstmt.getGeneratedKeys();
 			if (rs.next()) {

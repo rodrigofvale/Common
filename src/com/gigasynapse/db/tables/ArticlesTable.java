@@ -334,6 +334,30 @@ public class ArticlesTable {
 		return list;
 	}
 
+	public static ArrayList<ArticleTuple> list(int websiteId, 
+			ArticleStage stage) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE websiteId = ? AND stage = ? "
+				+ "ORDER BY firstSeen DESC LIMIT 150";
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setInt(1, websiteId);
+			pstmt.setInt(2, stage.getInt());
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
 	public static ArrayList<ArticleTuple> listPubDate(Date date, int websiteId, 
 			ArticleStage stage) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
@@ -363,6 +387,73 @@ public class ArticlesTable {
 			ArrayList<ArticleStage> stageList) {
 		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
 		String sql = "SELECT * FROM Articles WHERE pubDate = ? AND "
+				+ "websiteId = ? AND stage IN (";
+		
+		ArrayList<String> param = new ArrayList<String>();
+		stageList.forEach(item -> {
+			param.add("?");
+		});
+		sql += String.join(",", param) + ")";
+		
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setDate(1, new java.sql.Date(date.getTime()));
+			pstmt.setInt(2, websiteId);
+			for(int i = 0; i < stageList.size(); i++) {
+				pstmt.setInt(3 + i, stageList.get(i).getInt());
+			}
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
+	public static ArrayList<ArticleTuple> list(int websiteId, 
+			ArrayList<ArticleStage> stageList) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE websiteId = ? "
+				+ "AND stage IN (";
+		
+		ArrayList<String> param = new ArrayList<String>();
+		stageList.forEach(item -> {
+			param.add("?");
+		});
+		sql += String.join(",", param) + ") ORDER BY firstSeen DESC LIMIT 150";
+		
+		Statement stmt;
+		try {
+			PreparedStatement pstmt  = WebCrawlerDB.getInstance()
+					.getConnection().prepareStatement(sql);
+			pstmt.setInt(1, websiteId);
+			for(int i = 0; i < stageList.size(); i++) {
+				pstmt.setInt(2 + i, stageList.get(i).getInt());
+			}
+			ResultSet rs = pstmt.executeQuery();
+			while (rs.next()) {
+				ArticleTuple item = ResultSet2Article(rs);
+				list.add(item);
+			}
+			rs.close();
+			pstmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return list;
+	}
+	
+	public static ArrayList<ArticleTuple> listFirstSeen(Date date, int websiteId, 
+			ArrayList<ArticleStage> stageList) {
+		ArrayList<ArticleTuple> list = new ArrayList<ArticleTuple>();
+		String sql = "SELECT * FROM Articles WHERE firstSeen = ? AND "
 				+ "websiteId = ? AND stage IN (";
 		
 		ArrayList<String> param = new ArrayList<String>();

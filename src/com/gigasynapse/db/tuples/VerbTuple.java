@@ -10,7 +10,9 @@ public class VerbTuple {
 	public String pessoa;
 	public String conjugacao;
 	
-	public VerbTuple(String verbo, String gerundio, String participioPassado, String infinitido, String modo, String tempo, String pessoa, String conjugacao) {
+	public VerbTuple(String verbo, String gerundio, 
+			String participioPassado, String infinitido, String modo, 
+			String tempo, String pessoa, String conjugacao) {
 		this.verbo = verbo;
 		this.gerundio = gerundio;
 		this.participioPassado = participioPassado;

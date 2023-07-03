@@ -8,18 +8,18 @@ public class TaxonomyTuple {
 	public String label;
 	public String synonyms;
 	public int crossWith;
-	public String negative;
+	public int sentiment;
 	public TaxonomyTuple() {		
 	}
 	
 	public TaxonomyTuple(int id, int parentId, String label, 
-			String synonyms, int crossWith, String negative) {
+			String synonyms, int crossWith, int sentiment) {
 		this.id = id;
 		this.parentId = parentId;
 		this.label = label;
 		this.synonyms = synonyms;
 		this.crossWith = crossWith;
-		this.negative = negative;
+		this.sentiment = sentiment;
 	}
 	
 	public JSONObject toJSON() {
@@ -29,7 +29,7 @@ public class TaxonomyTuple {
 		item.put("label", this.label);
 		item.put("synonyms", this.synonyms);
 		item.put("crossWith", this.crossWith);
-		item.put("negative", this.negative);		
+		item.put("sentiment", this.sentiment);		
 		return item;
 	}
 }

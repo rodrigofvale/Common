@@ -19,7 +19,8 @@ public class VerbsTable {
 	public static VerbTuple getTuple(ResultSet rs) {
 		try {
 			return new VerbTuple(rs.getString("verbo"), 
-					rs.getString("gerundio"), rs.getString("participioPassado"), 
+					rs.getString("gerundio"), 
+					rs.getString("participioPassado"), 
 					rs.getString("infinitido"), rs.getString("modo"), 
 					rs.getString("tempo") , rs.getString("pessoa"), 
 					rs.getString("conjugacao")
@@ -32,7 +33,7 @@ public class VerbsTable {
 	
 	public static ArrayList<VerbTuple> list() {
 		ArrayList<VerbTuple> list = new ArrayList<VerbTuple>();
-		String sql = "SELECT * from Verbos WHERE tempo IN ('Pretérito Imperfeito', 'Pretérito Perfeito', 'Pretérito Imperfeito', 'Futuro', 'Pretérito Perfeito', 'Pretérito Imperfeito') AND pessoa in ('eu','ele','nós','eles')";
+		String sql = "SELECT * from Verbos WHERE tempo IN ('Presente', 'Pretérito Imperfeito', 'Pretérito Perfeito', 'Pretérito Imperfeito', 'Futuro', 'Pretérito Perfeito', 'Pretérito Imperfeito') AND pessoa in ('eu','ele','nós','eles')";
 		try {
 			Statement stmt = WebCrawlerDB.getInstance().getConnection().createStatement();
 			ResultSet rs = stmt.executeQuery(sql);			
